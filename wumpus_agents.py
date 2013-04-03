@@ -1,23 +1,10 @@
-
 from operator import iand, mul
-
 from wumpus_world import Contents, Senses, Actions, Directions
-
-
-
-
-
-
 
 
 class Agent:
 	def action(self, known_world, rng):
 		raise NotImplementedError()
-
-
-
-
-
 
 
 class HumanAgent(Agent):
@@ -58,12 +45,6 @@ class HumanAgent(Agent):
 			return None
 
 		return action, direction
-
-
-
-
-
-
 
 
 def cached_prob(dist_func):
@@ -194,12 +175,6 @@ class RationalAgent(Agent):
 		return {}
 
 
-
-
-
-
-
-
 class HybridAgent(HumanAgent):
 	def __init__(self):
 		self.__second_brain = RationalAgent()
@@ -211,18 +186,10 @@ class HybridAgent(HumanAgent):
 			n = neighbors[d][0]
 			b = self.__second_brain.bat_prob(n, known_world)
 			p = self.__second_brain.pit_prob(n, known_world)
-			w = self.__second_brain.wumpus_prob(n, known_world)			
+			w = self.__second_brain.wumpus_prob(n, known_world)
 			print "\t%s: Bat %.4f, Pit %.4f, Wumpus, %.4f" % (Directions.key(d), b, p, w)
 
 		return HumanAgent.action(self, known_world, rng)
-
-
-
-
-
-
-
-
 
 
 class SafeAgent(RationalAgent):
@@ -278,12 +245,6 @@ class SafeAgent(RationalAgent):
 		return self.action(known_world, rng)
 
 
-
-
-
-
-
-
 class NaiveSafeAgent(SafeAgent):
 	def __init__(self):
 		SafeAgent.__init__(self, self.danger_prob)
@@ -293,13 +254,6 @@ class NaiveSafeAgent(SafeAgent):
 		# Remember that different hazards are not mutually exclusive, but they are independent!
 		# You may want to check out the Wikipedia article on the Inclusion-Exclusion principle
 		return {}
-
-
-
-
-
-
-
 
 
 class BatSafeAgent(SafeAgent):
@@ -316,13 +270,6 @@ class BatSafeAgent(SafeAgent):
 		# already seen before effectively does nothing, as you just swap Bats and don't
 		# learn information about a new room
 		return {}
-
-
-
-
-
-
-
 
 
 class CleverAgent(RationalAgent):
