@@ -19,7 +19,7 @@ def enum(*sequential, **named):
 	for k, v in enums.iteritems():
 		setattr(Enum, k, v)
 	return Enum
-		
+
 
 
 # Set up all the enums we need for the game
@@ -110,7 +110,7 @@ class World:
 
 		# Set up the linking code
 		components = [[i] for i in range(nrooms)]
-		def link(c1, c2):		
+		def link(c1, c2):
 			r1 = r2 = -1
 
 			# Must choose and remove door first, in case this is a self-link
@@ -199,7 +199,7 @@ class World:
 				self.senses[i] |= Senses.STENCH
 
 		# =============================== Begin RNG Finalization ===============================
-		
+
 		# Finish setting up the RNGs
 		self.internal_state = random.getstate()
 		random.seed(agent_seed)
@@ -264,7 +264,7 @@ class World:
 		path, senses = [room], [self.senses[room]]
 		if content & (Contents.WUMPUS | Contents.PIT):
 			senses[-1] |= Senses.PAIN
-		
+
 		# Loop until the Agent is dead, or not on a bat, as long as the first bat was disturbed
 		move = self.internal_rng().uniform(0, 1)
 		while (move < self.bat_move) and (content & Contents.BAT) and not (senses[-1] & Senses.PAIN):
