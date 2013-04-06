@@ -24,7 +24,7 @@ def enum(*sequential, **named):
 
 # Set up all the enums we need for the game
 Actions = enum('MOVE', 'SHOOT')
-Directions = enum(NORTH=12, SOUTH=8, EAST=3, WEST=2, NORTHEAST=15, NORTHWEST=14, SOUTHEAST=11, SOUTHWEST=10)
+Directions = enum(NORTH=12, SOUTH=6, EAST=3, WEST=9, NORTHEAST=1, NORTHWEST=11, SOUTHEAST=5, SOUTHWEST=7)
 Contents = enum(WUMPUS=1, PIT=2, BAT=4, AGENT=8)
 Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)
 
