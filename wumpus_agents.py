@@ -89,6 +89,10 @@ class Node:
     self.parents = parents
     self.data = data
 
+  def __repr__(self):
+    s = "\nNODE\n----------------------------\n  Name:     %s\n  Children: %s\n  Parents:  %s\n  Data:     %s\n----------------------------\n" % (self.name, self.children, self.parents, self.data)
+    return s
+
 
 class DAG:
   def __init__(self):
@@ -96,7 +100,14 @@ class DAG:
 
 
 class BN:
-  # Bayesian Network for Wumpus World
+  # Implementation of a Bayesian Network tailored to the Wumpus World
+  #
+  # Defintions:
+  # - a 'variable' is a tuple (<category>, <room number>), e.g.
+  #   (CHITTERING, 7) or (BAT, 2)
+  # - an 'assignment' is a dict that maps variables to values, e.g.
+  #   { (CHITTERING, 7): True, (BAT, 2): False }
+
   def __init__(self, known_world):
     self.dag = DAG()
 
@@ -111,22 +122,18 @@ class BN:
 
     ####################
     # Populate Network #
-    #########################################################################
-    # Defintions:
-    # - a 'variable' is a tuple (<category>, <room number>), e.g.
-    #   (CHITTERING, 7) or (BAT, 2)
-    # - an 'assignment' is a dict that maps variables to values, e.g.
-    #   { (CHITTERING, 7): True, (BAT, 2): False }
+    ##########################################################################
     for room in known_world.visited_rooms():
       neighbors = known_world.neighbors(room)
 
       # Chitter Node
-      #======================================================================
+      #=======================================================================
       name = (CHITTERING, room)
       # The only thing that CHITTERING causes is BAT in the same room, so
       # BAT in this room is the only child
       children = [(BAT, room)]
       parents = None
+      # Chittering will never be a query variable, so don't bother with a CPT
       cpt = None
       node = Node(name, children, parents, cpt)
       # add to dag and chitter dict
@@ -134,7 +141,7 @@ class BN:
       self.chitter[room] = node
 
       # Bat Node
-      #======================================================================
+      #=======================================================================
       name = (BAT, room)
       children = None
       # The only thing that causes BAT is CHITTERING in the same room, so
@@ -145,14 +152,22 @@ class BN:
       #   list of probabilites, one for each possible value of the variable.
       #   NOTE: Here I'm using a trick that relies on the fact that the
       #   probability of BAT in this room is 1 if we hear CHITTERING in this
-      #   room and 0  otherwise
+      #   room and 0  otherwise.
       cpt = lambda assignment: 1 if all(assignment[variable] for variable in assignment) else 0
       # add to dag and bat dict
       self.dag.nodes.add(node)
       self.bat[room] = node
 
+  def query(variables, evidence):
+    # Implementation of TODO: choose inference algorithm
+    # Takes a list of variables and an assignment.
+    # Returns the posterior conditional probability of each possible value of
+    # the set of variables, given the evidence (a dict that maps possible
+    # values to probabilities).
+    return
 
-#############################################################################
+
+##############################################################################
 
 class RationalAgent(Agent):
   _memo_choose = {}
@@ -245,8 +260,8 @@ class RationalAgent(Agent):
   # ==========================================================================================
 
   ##########
-  # senses #
-  ###########################################################################
+  # Senses #
+  ############################################################################
   # In rooms adjacent to or containing a Pit, the Agent perceives a Breeze
   # with probability 1. In rooms containing (but not adjacent to) a Bat, the
   # Agent perceives Chittering with probability 1.
@@ -261,24 +276,38 @@ class RationalAgent(Agent):
 
   ###################
   # KnownWorld info #
-  ###########################################################################
-  # connectivity
-  # num_rooms
-  # num_wumpii
-  # num_pits
-  # num_bats
-  # num_arrows
-  # stench_prob
-  # bat_prob
-  # neighbors
-  # current_room
-  # move_num
-  # shots
-  # visited_rooms
-  # fringe_rooms
-  # adjective
-  # description
+  ############################################################################
+  # Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)
+  #
+  # connectivity()
+  # num_rooms()
+  # num_wumpii()
+  # num_pits()
+  # num_bats()
+  # num_arrows()
+  # stench_prob()
+  # bat_prob()
+  # neighbors()
+  # current_room()
+  # move_num()
+  # shots()
+  # visited_rooms()
+  # fringe_rooms()
+  # adjective()
+  # description()
 
+  def parse_sense(sense):
+    senses = {
+        stench: False
+        breeze: False
+        chittering: False
+        bump: False
+        scream: False
+        pain: False
+      }
+    sense = bin(sense).split('b')[1]
+
+    return
 
   @cached_prob
   def bat_prob(self, known_world):
@@ -289,7 +318,7 @@ class RationalAgent(Agent):
     # or not you've visited each room
 
     #################################
-    # shorthand for game parameters #
+    # Shorthand for game parameters #
     #################################
     # # number of rooms
     # R = known_world.num_rooms
@@ -303,48 +332,102 @@ class RationalAgent(Agent):
     # A = known_world.num_arrows
     # # prob of disturbing bat and being moved
     # M = known_world.bat_prob
-    print '=================================================================='
-    print 'known_world:'
-    print '------------'
-    print 'current:'
+    print '\n=================================================================='
+    print 'known_world'
+    print '------------------------------------------------------------------'
+    print 'Current room:'
     print known_world.current_room()
-    print 'neighbors:'
+    print 'Neighbors:'
     print known_world.neighbors(known_world.current_room())
-    print 'fringe:'
-    print known_world.fringe_rooms()
-    print 'visited:'
+    print 'Visited rooms:'
     print known_world.visited_rooms()
+    print 'Fringe rooms:'
+    print known_world.fringe_rooms()
     print '=================================================================='
+
+    result = dict()
+
+    # For visited rooms, don't even use the Bayes net; we know for sure whether
+    # they have Bats or not.
+    print "### KNOWN ###"
+    for room, sense in known_world.visited_rooms().iteritems():
+      print "  Room =",room
+      # Convert sense to binary, split on 'b'
+      print "    DEC SENSE:",sense
+      sense = bin(sense).split('b')[1]
+      # Check the 4s place (this corresponds to whether or not there's
+      # CHITTERING in the room, since CHITTERING == 4 in the enum)
+      print "    BIN SENSE:",sense
+      if len(sense) < 3:
+        print "      shorter than three: setting to 0"
+        result[room] = 0
+      else:
+        print "      longer than three: setting to", sense[-3]
+        result[room] = float(sense[-3])
+
+    print "### FRINGE ###"
+    for room in known_world.fringe_rooms():
+      print "  Room =",room
+      result[room] = 0
+
+    print "Bat result:"
+    print result
 
     # construct the Bayes Net
     bn = BN(known_world)
 
-    return {}
+    return result
 
 
   @cached_prob
   def pit_prob(self, known_world):
-  # Returns a map from known room numbers to the probability that each room
-  # contains a Pit, given the information encoded in known_world
-  #
-  # Remember to consider whether or not you've visited each room and whether
-  # or not a particular configuration of Pits yields the pattern of BREEZEs
-  # that you've observed in known_world
-    return {}
+    # Returns a map from known room numbers to the probability that each room
+    # contains a Pit, given the information encoded in known_world
+    #
+    # Remember to consider whether or not you've visited each room and whether
+    # or not a particular configuration of Pits yields the pattern of BREEZEs
+    # that you've observed in known_world
+
+    result = dict()
+
+    for room, sense in known_world.visited_rooms().iteritems():
+      result[room] = 0
+
+    for room in known_world.fringe_rooms():
+      result[room] = 0
+
+    print "Pit result:"
+    print result
+
+    return result
 
 
   @cached_prob
   def wumpus_prob(self, known_world):
-  # Returns a map from known room numbers to the probability that each room
-  # contains a Wumpus, given the information encoded in known_world
-  #
-  # Remember to consider whether or not you've visited each room and how
-  # likely it is for a particular configuration of Wumpii to yield the
-  # pattern of STENCHes that you've observed in known_world. Don't forget
-  # that a BREEZE changes the probability of a STENCH, that killing a Wumpus
-  # doesn't wipe away its STENCH. Finally, remember to take into account any
-  # arrows that you've fired, and the results!
-    return {}
+    # Returns a map from known room numbers to the probability that each room
+    # contains a Wumpus, given the information encoded in known_world
+    #
+    # Remember to consider whether or not you've visited each room and how
+    # likely it is for a particular configuration of Wumpii to yield the
+    # pattern of STENCHes that you've observed in known_world. Don't forget
+    # that a BREEZE changes the probability of a STENCH, that killing a Wumpus
+    # doesn't wipe away its STENCH. Finally, remember to take into account any
+    # arrows that you've fired, and the results!
+
+    result = dict()
+
+    for room, sense in known_world.visited_rooms().iteritems():
+      result[room] = 0
+
+    for room in known_world.fringe_rooms():
+      result[room] = 0
+
+    print "Wumpus result:"
+    print result
+
+    print '==================================================================\n'
+
+    return result
 
 
 class HybridAgent(HumanAgent):

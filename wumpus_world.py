@@ -206,13 +206,13 @@ class World:
 		self.agent_state = random.getstate()
 		self.rng_for_agent = True
 
-#		for i in xrange(nrooms):
-#			print "Room %d:" % i
-#			print self.rooms[i]
-#			print self.contents[i]
-#			print self.senses[i]
-#			print self.linked_doors[i]
-#			print
+		for i in xrange(nrooms):
+			print "Room %d:" % i
+			print self.rooms[i]
+			print self.contents[i]
+			print self.senses[i]
+			print self.linked_doors[i]
+			print
 
 
 	# ==========================================================================================
