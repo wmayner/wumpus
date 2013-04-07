@@ -65,6 +65,95 @@ def cached_prob(dist_func):
   return _cached_prob
 
 
+#################################
+# Bayesian Network support code #
+#############################################################################
+
+
+# Global constants for variable categories
+#==========================================
+# Query Variables:
+BAT = 1
+PIT = 2
+WUMPUS = 3
+# Evidence Variables:
+CHITTERING = 4
+BREEZE = 5
+STENCH = 6
+
+
+class Node:
+  def __init__(self, name, children, parents, data):
+    self.name = name
+    self.children = children
+    self.parents = parents
+    self.data = data
+
+
+class DAG:
+  def __init__(self):
+    self.nodes = set()
+
+
+class BN:
+  # Bayesian Network for Wumpus World
+  def __init__(self, known_world):
+    self.dag = DAG()
+
+    # Query Variables:
+    self.bat = dict()
+    self.pit = dict()
+    self.wumpus = dict()
+    # Evidence Variables:
+    self.chitter = dict()
+    self.breeze = dict()
+    self.stench = dict()
+
+    ####################
+    # Populate Network #
+    #########################################################################
+    # Defintions:
+    # - a 'variable' is a tuple (<category>, <room number>), e.g.
+    #   (CHITTERING, 7) or (BAT, 2)
+    # - an 'assignment' is a dict that maps variables to values, e.g.
+    #   { (CHITTERING, 7): True, (BAT, 2): False }
+    for room in known_world.visited_rooms():
+      neighbors = known_world.neighbors(room)
+
+      # Chitter Node
+      #======================================================================
+      name = (CHITTERING, room)
+      # The only thing that CHITTERING causes is BAT in the same room, so
+      # BAT in this room is the only child
+      children = [(BAT, room)]
+      parents = None
+      cpt = None
+      node = Node(name, children, parents, cpt)
+      # add to dag and chitter dict
+      self.dag.nodes.add(node)
+      self.chitter[room] = node
+
+      # Bat Node
+      #======================================================================
+      name = (BAT, room)
+      children = None
+      # The only thing that causes BAT is CHITTERING in the same room, so
+      # CHITTERING in this room is the only parent
+      parents = [(CHITTERING, room)]
+      # Generate CPT
+      #   The CPT is in fact a function that takes an assignment and returns a
+      #   list of probabilites, one for each possible value of the variable.
+      #   NOTE: Here I'm using a trick that relies on the fact that the
+      #   probability of BAT in this room is 1 if we hear CHITTERING in this
+      #   room and 0  otherwise
+      cpt = lambda assignment: 1 if all(assignment[variable] for variable in assignment) else 0
+      # add to dag and bat dict
+      self.dag.nodes.add(node)
+      self.bat[room] = node
+
+
+#############################################################################
+
 class RationalAgent(Agent):
   _memo_choose = {}
 
@@ -157,7 +246,7 @@ class RationalAgent(Agent):
 
   ##########
   # senses #
-  ##########
+  ###########################################################################
   # In rooms adjacent to or containing a Pit, the Agent perceives a Breeze
   # with probability 1. In rooms containing (but not adjacent to) a Bat, the
   # Agent perceives Chittering with probability 1.
@@ -172,7 +261,7 @@ class RationalAgent(Agent):
 
   ###################
   # KnownWorld info #
-  ###################
+  ###########################################################################
   # connectivity
   # num_rooms
   # num_wumpii
@@ -189,6 +278,7 @@ class RationalAgent(Agent):
   # fringe_rooms
   # adjective
   # description
+
 
   @cached_prob
   def bat_prob(self, known_world):
@@ -213,7 +303,23 @@ class RationalAgent(Agent):
     # A = known_world.num_arrows
     # # prob of disturbing bat and being moved
     # M = known_world.bat_prob
-    return
+    print '=================================================================='
+    print 'known_world:'
+    print '------------'
+    print 'current:'
+    print known_world.current_room()
+    print 'neighbors:'
+    print known_world.neighbors(known_world.current_room())
+    print 'fringe:'
+    print known_world.fringe_rooms()
+    print 'visited:'
+    print known_world.visited_rooms()
+    print '=================================================================='
+
+    # construct the Bayes Net
+    bn = BN(known_world)
+
+    return {}
 
 
   @cached_prob
@@ -239,28 +345,6 @@ class RationalAgent(Agent):
   # doesn't wipe away its STENCH. Finally, remember to take into account any
   # arrows that you've fired, and the results!
     return {}
-
-
-class Node:
-  def __init__(self, name, children):
-    self.name = name
-    self.children = chilren
-
-
-class DAG:
-  def __init__(self):
-    self.nodes = set()
-
-
-class BN(DAG):
-  def __init__(self, known_world):
-    self.bat = []
-    self.pit = []
-    self.wumpus = []
-    self.breeze = []
-    self.chitter = []
-    for i in range(known_world.num_rooms):
-      self.bat.append()
 
 
 class HybridAgent(HumanAgent):
