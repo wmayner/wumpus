@@ -1,12 +1,16 @@
+# Make floating-point division the default
 from __future__ import division
+
 from operator import iand, mul
 from wumpus_world import Contents, Senses, Actions, Directions
 
 
+## Agent ##
 class Agent:
   def action(self, known_world, rng):
     raise NotImplementedError()
 
+## HumanAgent ##
 class HumanAgent(Agent):
   # Action and Direction abbreviations
   act_abbrev = dict((n, n.replace("MOVE", "M").replace("SHOOT", "S")) for n, v in Actions)
@@ -65,120 +69,27 @@ def cached_prob(dist_func):
   return _cached_prob
 
 
-#################################
-# Bayesian Network support code #
-#############################################################################
-
-
 # Global constants for variable categories
-#==========================================
-# Evidence Variables:
 STENCH = 'STENCH'
 BREEZE = 'BREEZE'
 CHITTERING = 'CHITTERING'
 BUMP = 'BUMP'
 SCREAM = 'SCREAM'
 PAIN = 'PAIN'
-# Query Variables:
 BAT = 'BAT'
 PIT = 'PIT'
 WUMPUS = 'WUMPUS'
 
 
-class Node:
-  def __init__(self, name, children, parents, data):
-    self.name = name
-    self.children = children
-    self.parents = parents
-    self.data = data
-
-  def __repr__(self):
-    s = "\nNODE\n----------------------------\n  Name:     %s\n  Children: %s\n  Parents:  %s\n  Data:     %s\n----------------------------\n" % (self.name, self.children, self.parents, self.data)
-    return s
-
-
-class DAG:
-  def __init__(self):
-    self.nodes = set()
-
-
-class BN:
-  # Implementation of a Bayesian Network tailored to the Wumpus World
-  #
-  # Defintions:
-  # - a 'variable' is a tuple (<category>, <room number>), e.g.
-  #   (CHITTERING, 7) or (BAT, 2)
-  # - an 'assignment' is a dict that maps variables to values, e.g.
-  #   { (CHITTERING, 7): True, (BAT, 2): False }
-
-  def __init__(self, known_world):
-    self.dag = DAG()
-
-    # Query Variables:
-    self.bat = dict()
-    self.pit = dict()
-    self.wumpus = dict()
-    # Evidence Variables:
-    self.chitter = dict()
-    self.breeze = dict()
-    self.stench = dict()
-
-    ####################
-    # Populate Network #
-    ##########################################################################
-    for room in known_world.visited_rooms():
-      neighbors = known_world.neighbors(room)
-
-      # Chitter Node
-      #=======================================================================
-      name = (CHITTERING, room)
-      # The only thing that CHITTERING causes is BAT in the same room, so
-      # BAT in this room is the only child
-      children = [(BAT, room)]
-      parents = None
-      # Chittering will never be a query variable, so don't bother with a CPT
-      cpt = None
-      node = Node(name, children, parents, cpt)
-      # add to dag and chitter dict
-      self.dag.nodes.add(node)
-      self.chitter[room] = node
-
-      # Bat Node
-      #=======================================================================
-      name = (BAT, room)
-      children = None
-      # The only thing that causes BAT is CHITTERING in the same room, so
-      # CHITTERING in this room is the only parent
-      parents = [(CHITTERING, room)]
-      # Generate CPT
-      #   The CPT is in fact a function that takes an assignment and returns a
-      #   list of probabilites, one for each possible value of the variable.
-      #   NOTE: Here I'm using a trick that relies on the fact that the
-      #   probability of BAT in this room is 1 if we hear CHITTERING in this
-      #   room and 0  otherwise.
-      cpt = lambda assignment: 1 if all(assignment[variable] for variable in assignment) else 0
-      # add to dag and bat dict
-      self.dag.nodes.add(node)
-      self.bat[room] = node
-
-  def query(variables, evidence):
-    # Implementation of TODO: choose inference algorithm
-    # Takes a list of variables and an assignment.
-    # Returns the posterior conditional probability of each possible value of
-    # the set of variables, given the evidence (a dict that maps possible
-    # values to probabilities).
-    return
-
-
-# parse_senses
+#### parse_senses ####
+# Takes a decimal number representing sensory information
+# Returns a dict mapping senses to booleans indicating their presence
+#
+# `Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)`
+#
+# Convert sense info to binary, split on `'b'` to get just the bit string, add
+# leading zeros so there's a digit for each sense, reverse it
 def parse_senses(sense_info):
-  # Takes a decimal number representing sensory information
-  # Returns a dict mapping senses to booleans indicating their presence
-  #
-  # Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)
-
-  # Convert sense info to binary, split on 'b' to get just the bit string, add
-  # leading zeros so there's a digit for each sense, reverse it
   sense_info = bin(sense_info).split('b')[1].zfill(6)[::-1]
 
   senses = dict()
@@ -187,13 +98,14 @@ def parse_senses(sense_info):
   return senses
 
 
+## Rational Agent ##
 class RationalAgent(Agent):
   _memo_choose = {}
 
   def __init__(self):
     pass
 
-  ## Begin Counting Methods ##
+  ### Counting Methods ###
 
   # Memoized implementation of (n choose k)
   def choose(self, n, k):
@@ -224,7 +136,7 @@ class RationalAgent(Agent):
       yield []
 
 
-  ## Navigation Methods ##
+  ### Navigation Methods ###
 
   def reachable(self, room, known_world):
     # Just return every room we can find a path to
@@ -269,10 +181,9 @@ class RationalAgent(Agent):
     return paths.copy()
 
 
-  # Inference Methods
-  #===================
+  ### Inference Methods ###
 
-  ### Senses ###
+  #### Senses ####
   #
   # In rooms adjacent to or containing a Pit, the Agent perceives a Breeze
   # with probability 1. In rooms containing (but not adjacent to) a Bat, the
@@ -286,7 +197,7 @@ class RationalAgent(Agent):
   # at the beginning of the game, so re-entering a room or killing a Wumpus
   # won't change the Stench of a room.
 
-  ### KnownWorld info ###
+  #### KnownWorld info ####
   # `Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)`
   #
   #     connectivity()
@@ -307,7 +218,7 @@ class RationalAgent(Agent):
   #     description()
 
 
-  ### bat_prob ###
+  #### bat_prob ####
   @cached_prob
   def bat_prob(self, known_world):
     # Returns a map from known room numbers to the probability that each room
@@ -364,7 +275,7 @@ class RationalAgent(Agent):
     return result
 
 
-  ### pit_prob ###
+  #### pit_prob ####
   @cached_prob
   def pit_prob(self, known_world):
     # Returns a map from known room numbers to the probability that each room
@@ -413,7 +324,7 @@ class RationalAgent(Agent):
           # This is 1 if the breezes are consistent with there being no pits in
           # visited rooms, a pit in the query room, and a pit in the
           # fringe_room; 0 otherwise.
-
+          print 'hi'
       result[query] = alpha * prior_pit_prob * sum_over_fringe
 
     print "  Pit result:"
@@ -422,7 +333,7 @@ class RationalAgent(Agent):
     return result
 
 
-  ### wumpus_prob ###
+  #### wumpus_prob ####
   @cached_prob
   def wumpus_prob(self, known_world):
     # Returns a map from known room numbers to the probability that each room
@@ -455,6 +366,7 @@ class RationalAgent(Agent):
     return result
 
 
+## HybridAgent ##
 class HybridAgent(HumanAgent):
   def __init__(self):
     self.__second_brain = RationalAgent()
@@ -472,6 +384,7 @@ class HybridAgent(HumanAgent):
     return HumanAgent.action(self, known_world, rng)
 
 
+## SafeAgent ##
 class SafeAgent(RationalAgent):
   def __init__(self, danger):
     self.danger = danger
@@ -525,6 +438,7 @@ class SafeAgent(RationalAgent):
     return self.action(known_world, rng)
 
 
+## NaiveSafeAgent ##
 class NaiveSafeAgent(SafeAgent):
   def __init__(self):
     SafeAgent.__init__(self, self.danger_prob)
@@ -536,6 +450,7 @@ class NaiveSafeAgent(SafeAgent):
     return {}
 
 
+## BatSafeAgent ##
 class BatSafeAgent(SafeAgent):
   def __init__(self):
     SafeAgent.__init__(self, self.lethal_prob)
@@ -552,8 +467,10 @@ class BatSafeAgent(SafeAgent):
     return {}
 
 
+## CleverAgent ##
 class CleverAgent(RationalAgent):
   def action(self, known_world, rng):
     raise NotImplementedError()
 
+# *Vim Modeline:*
 # vim: set foldmethod=indent foldlevel=0
