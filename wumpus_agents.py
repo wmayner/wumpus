@@ -1,3 +1,4 @@
+from __future__ import division
 from operator import iand, mul
 from wumpus_world import Contents, Senses, Actions, Directions
 
@@ -71,14 +72,17 @@ def cached_prob(dist_func):
 
 # Global constants for variable categories
 #==========================================
-# Query Variables:
-BAT = 1
-PIT = 2
-WUMPUS = 3
 # Evidence Variables:
-CHITTERING = 4
-BREEZE = 5
-STENCH = 6
+STENCH = 'STENCH'
+BREEZE = 'BREEZE'
+CHITTERING = 'CHITTERING'
+BUMP = 'BUMP'
+SCREAM = 'SCREAM'
+PAIN = 'PAIN'
+# Query Variables:
+BAT = 'BAT'
+PIT = 'PIT'
+WUMPUS = 'WUMPUS'
 
 
 class Node:
@@ -180,7 +184,7 @@ def parse_senses(sense_info):
   sense_info = bin(sense_info).split('b')[1].zfill(6)[::-1]
 
   senses = dict()
-  for sense, digit in [('stench', 0), ('breeze', 1), ('chittering', 2), ('bump', 3), ('scream', 4), ('pain', 5)]:
+  for sense, digit in [(STENCH, 0), (BREEZE, 1), (CHITTERING, 2), (BUMP, 3), (SCREAM, 4), (PAIN, 5)]:
     senses[sense] = int(sense_info[digit])
   return senses
 
@@ -323,68 +327,50 @@ class RationalAgent(Agent):
     # Remember to consider Bats you've already seen within the maze, and whether
     # or not you've visited each room
 
-    #################################
-    # Shorthand for game parameters #
-    #################################
-    # # number of rooms
-    # R = known_world.num_rooms
-    # # number of wumpii
-    # W = known_world.num_wumpii
-    # # number of pits
-    # P = known_world.num_pits
-    # # number of bats
-    # B = known_world.num_bats
-    # # number of arrows
-    # A = known_world.num_arrows
-    # # prob of disturbing bat and being moved
-    # M = known_world.bat_prob
+    # print '\n=================================================================='
+    # print 'known_world'
+    # print '------------------------------------------------------------------'
+    # print 'Current room:'
+    # print known_world.current_room()
+    # print 'Neighbors:'
+    # print known_world.neighbors(known_world.current_room())
+    # print 'Visited rooms:'
+    # print known_world.visited_rooms()
+    # print 'Fringe rooms:'
+    # print known_world.fringe_rooms()
+    # print 'Parse senses:'
+    # for key, val in known_world.visited_rooms().iteritems():
+    #   print parse_senses(val)
+    # print
     print '\n=================================================================='
-    print 'known_world'
+    print 'bat_prob'
     print '------------------------------------------------------------------'
-    print 'Current room:'
-    print known_world.current_room()
-    print 'Neighbors:'
-    print known_world.neighbors(known_world.current_room())
-    print 'Visited rooms:'
-    print known_world.visited_rooms()
-    print 'Fringe rooms:'
-    print known_world.fringe_rooms()
-    print 'Parse senses:'
-    for key, val in known_world.visited_rooms().iteritems():
-      print parse_senses(val)
-    print
-    print '=================================================================='
 
     result = dict()
 
-    # For visited rooms, don't even use the Bayes net; we know for sure whether
-    # they have Bats or not.
-    print "### KNOWN ###"
-    for room, sense in known_world.visited_rooms().iteritems():
-      print "  Room =",room
-      # Convert sense to binary, split on 'b'
-      print "    DEC SENSE:",sense
-      sense = bin(sense).split('b')[1]
-      # Check the 4s place (this corresponds to whether or not there's
-      # CHITTERING in the room, since CHITTERING == 4 in the enum)
-      print "    BIN SENSE:",sense
-      if len(sense) < 3:
-        print "      shorter than three: setting to 0"
-        result[room] = 0
-      else:
-        print "      longer than three: setting to", sense[-3]
-        result[room] = float(sense[-3])
+    # print "### KNOWN ###"
+    for room, sense_code in known_world.visited_rooms().iteritems():
+      # print "  Room =",room
+      result[room] = parse_senses(sense_code)[CHITTERING]
 
-    print "### FRINGE ###"
+    # Number of bats seen is just the sum of the probabilities of seeing a bat
+    # over the known rooms.
+    num_bats_seen = sum(result.itervalues())
+
+    # Probability of finding a bat in an unvisited room is
+    # number of bats in unvisited rooms / number of unvisited rooms
+    #   = (number of bats - number of seen bats) / (number of rooms - number of visited rooms)
+    bat_prior_prob = (known_world.num_bats() - num_bats_seen) / (known_world.num_rooms() - len(known_world.visited_rooms()))
+    print "  Calculating bat prior:"
+    print "  (", str(known_world.num_bats()), '-', str(num_bats_seen), ')  /  (', str((known_world.num_rooms())), '-', str(len(known_world.visited_rooms())), ')  = ', bat_prior_prob
+
+    # print "### FRINGE ###"
     for room in known_world.fringe_rooms():
-      print "  Room =",room
-      result[room] = 0
+      # print "  Room =",room
+      result[room] = bat_prior_prob
 
-    print "Bat result:"
-    print result
-
-    # construct the Bayes Net
-    bn = BN(known_world)
+    print "  Bat result:"
+    print ' ',result
 
     return result
 
@@ -398,16 +384,28 @@ class RationalAgent(Agent):
     # or not a particular configuration of Pits yields the pattern of BREEZEs
     # that you've observed in known_world
 
+    print '------------------------------------------------------------------'
+    print 'pit_prob'
+    print '------------------------------------------------------------------'
+
     result = dict()
 
+    print '  Calculating pit prior:'
+
+    # Prior pit probability is just the number of unseen pits / number of unvisited rooms
+    pit_prior_prob = known_world.num_pits() / (known_world.num_rooms() - len(known_world.visited_rooms()))
+    print "  (", str(known_world.num_pits()), ')  /  (', str((known_world.num_rooms())), '-', str(len(known_world.visited_rooms())), ')  = ', pit_prior_prob
+
     for room, sense in known_world.visited_rooms().iteritems():
+      # If we've visited the room (and we're still alive and doing probability
+      # calculations), then it can't contain a pit
       result[room] = 0
 
     for room in known_world.fringe_rooms():
-      result[room] = 0
+      result[room] = pit_prior_prob
 
-    print "Pit result:"
-    print result
+    print "  Pit result:"
+    print ' ',result
 
     return result
 
@@ -424,6 +422,10 @@ class RationalAgent(Agent):
     # doesn't wipe away its STENCH. Finally, remember to take into account any
     # arrows that you've fired, and the results!
 
+    print '------------------------------------------------------------------'
+    print 'wumpus_prob'
+    print '------------------------------------------------------------------'
+
     result = dict()
 
     for room, sense in known_world.visited_rooms().iteritems():
@@ -432,8 +434,8 @@ class RationalAgent(Agent):
     for room in known_world.fringe_rooms():
       result[room] = 0
 
-    print "Wumpus result:"
-    print result
+    print "  Wumpus result:"
+    print ' ',result
 
     print '==================================================================\n'
 
