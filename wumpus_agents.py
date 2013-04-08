@@ -219,14 +219,15 @@ class RationalAgent(Agent):
 
 
   #### bat_prob ####
+  # Returns a map from known room numbers to the probability that each room
+  # contains a Bat, given the information encoded in `known_world`
+  #
+  # Remember to consider Bats you've already seen within the maze, and whether
+  # or not you've visited each room
+  #
+  # ---
   @cached_prob
   def bat_prob(self, known_world):
-    # Returns a map from known room numbers to the probability that each room
-    # contains a Bat, given the information encoded in `known_world`
-    #
-    # Remember to consider Bats you've already seen within the maze, and whether
-    # or not you've visited each room
-
     # print '\n=================================================================='
     # print 'known_world'
     # print '------------------------------------------------------------------'
@@ -276,54 +277,53 @@ class RationalAgent(Agent):
 
 
   #### pit_prob ####
+  # Returns a map from known room numbers to the probability that each room
+  # contains a Pit, given the information encoded in `known_world`
+  #
+  # Remember to consider whether or not you've visited each room and whether
+  # or not a particular configuration of Pits yields the pattern of BREEZEs
+  # that you've observed in `known_world`
+  #
+  # Expression for probability of pit in query room given `visited_rooms` and
+  # BREEZES:
+  #
+  #     P(pit_query | breezes, visited_rooms) =
+  #       \alpha * P(pit_query) * [ \sum_{fringe_rooms} P(breezes | known,
+  #       pit_query, pit_fringe_room) * P(pit_fringe_room) ]
+  #
+  # ---
   @cached_prob
   def pit_prob(self, known_world):
-    # Returns a map from known room numbers to the probability that each room
-    # contains a Pit, given the information encoded in `known_world`
-    #
-    # Remember to consider whether or not you've visited each room and whether
-    # or not a particular configuration of Pits yields the pattern of BREEZEs
-    # that you've observed in `known_world`
-
     print '------------------------------------------------------------------'
     print 'pit_prob'
     print '------------------------------------------------------------------'
 
     result = dict()
 
-    print '  Calculating pit prior:'
 
+    # If we've visited the room (and we're still alive and doing probability
+    # calculations), then it can't contain a pit
     for room, sense in known_world.visited_rooms().iteritems():
-      # If we've visited the room (and we're still alive and doing probability
-      # calculations), then it can't contain a pit
       result[room] = 0
 
-    #########################################################
-    # Calculate prior probability of a pit in a fringe room
-    #########################################################
-    # This is just the number of unseen pits / number of
-    # unvisited rooms
+    # Calculate prior probability of a pit in a fringe room.
+    # This is just the `number of unseen pits / number of
+    # unvisited rooms`.
+    print '  Calculating pit prior:'
     pit_prior_prob = known_world.num_pits() / (known_world.num_rooms() - len(known_world.visited_rooms()))
     print "  (", str(known_world.num_pits()), ')  /  (', str((known_world.num_rooms())), '-', str(len(known_world.visited_rooms())), ')  = ', pit_prior_prob
 
-    ###########################################################################
-    # Expression for probability of pit in query room given visited_rooms and
-    # breezes:
+    # Calculate
+    # `P(breezes | visited_rooms, pit_query, pit_fringe_room)`
+    # for each fringe room.
     #
-    # P(pit_query | breezes, visited_rooms) =
-    #   \alpha * P(pit_query) * [ \sum_{fringe_rooms} P(breezes | known,
-    #   pit_query, pit_fringe_room) * P(pit_fringe_room) ]
-    ##########################################################################
-
+    # This is 1 if the breezes are consistent with there being no pits in
+    # `visited_rooms`, a pit in the query room, and a pit in the
+    # `fringe_room`, and 0 otherwise.
     for query in known_world.fringe_rooms():
       sum_over_fringe = 0
       for fringe_room in known_world.fringe_rooms():
         if fringe_room is not query:
-          # P(breezes | visited_rooms, pit_query, pit_fringe_room)
-          #
-          # This is 1 if the breezes are consistent with there being no pits in
-          # visited rooms, a pit in the query room, and a pit in the
-          # fringe_room; 0 otherwise.
           print 'hi'
       result[query] = alpha * prior_pit_prob * sum_over_fringe
 
@@ -334,18 +334,19 @@ class RationalAgent(Agent):
 
 
   #### wumpus_prob ####
+  # Returns a map from known room numbers to the probability that each room
+  # contains a Wumpus, given the information encoded in `known_world`
+  #
+  # Remember to consider whether or not you've visited each room and how
+  # likely it is for a particular configuration of Wumpii to yield the
+  # pattern of STENCHes that you've observed in `known_world`. Don't forget
+  # that a BREEZE changes the probability of a STENCH, that killing a Wumpus
+  # doesn't wipe away its STENCH. Finally, remember to take into account any
+  # arrows that you've fired, and the results!
+  #
+  # ---
   @cached_prob
   def wumpus_prob(self, known_world):
-    # Returns a map from known room numbers to the probability that each room
-    # contains a Wumpus, given the information encoded in `known_world`
-    #
-    # Remember to consider whether or not you've visited each room and how
-    # likely it is for a particular configuration of Wumpii to yield the
-    # pattern of STENCHes that you've observed in `known_world`. Don't forget
-    # that a BREEZE changes the probability of a STENCH, that killing a Wumpus
-    # doesn't wipe away its STENCH. Finally, remember to take into account any
-    # arrows that you've fired, and the results!
-
     print '------------------------------------------------------------------'
     print 'wumpus_prob'
     print '------------------------------------------------------------------'
