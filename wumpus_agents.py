@@ -169,7 +169,7 @@ class BN:
 ##############################################################################
 
 
-def parse_sense(sense_info):
+def parse_senses(sense_info):
   # Takes a decimal number representing sensory information
   # Returns a dict mapping senses to booleans indicating their presence
   #
@@ -351,7 +351,7 @@ class RationalAgent(Agent):
     print known_world.fringe_rooms()
     print 'Parse senses:'
     for key, val in known_world.visited_rooms().iteritems():
-      print parse_sense(val)
+      print parse_senses(val)
     print
     print '=================================================================='
 
