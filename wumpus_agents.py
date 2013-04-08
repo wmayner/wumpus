@@ -6,7 +6,6 @@ class Agent:
   def action(self, known_world, rng):
     raise NotImplementedError()
 
-
 class HumanAgent(Agent):
   # Action and Direction abbreviations
   act_abbrev = dict((n, n.replace("MOVE", "M").replace("SHOOT", "S")) for n, v in Actions)
@@ -169,6 +168,25 @@ class BN:
 
 ##############################################################################
 
+
+def parse_sense(sense_info):
+  # Takes a decimal number representing sensory information
+  # Returns a dict mapping senses to booleans indicating their presence
+  #
+  # Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)
+
+  # Convert sense info to binary, split on 'b' to get just the bit string, add
+  # leading zeros so there's a digit for each sense, reverse it
+  sense_info = bin(sense_info).split('b')[1].zfill(6)[::-1]
+
+  senses = dict()
+  for sense, digit in [('stench', 0), ('breeze', 1), ('chittering', 2), ('bump', 3), ('scream', 4), ('pain', 5)]:
+    senses[sense] = int(sense_info[digit])
+  return senses
+
+
+##############################################################################
+
 class RationalAgent(Agent):
   _memo_choose = {}
 
@@ -296,18 +314,6 @@ class RationalAgent(Agent):
   # adjective()
   # description()
 
-  def parse_sense(sense):
-    senses = {
-        stench: False
-        breeze: False
-        chittering: False
-        bump: False
-        scream: False
-        pain: False
-      }
-    sense = bin(sense).split('b')[1]
-
-    return
 
   @cached_prob
   def bat_prob(self, known_world):
@@ -343,6 +349,10 @@ class RationalAgent(Agent):
     print known_world.visited_rooms()
     print 'Fringe rooms:'
     print known_world.fringe_rooms()
+    print 'Parse senses:'
+    for key, val in known_world.visited_rooms().iteritems():
+      print parse_sense(val)
+    print
     print '=================================================================='
 
     result = dict()
