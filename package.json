@@ -1,0 +1,13 @@
+{
+  "name": "wumpus"
+, "version": "0.0.1"
+, "private": true
+, "devDependencies": {
+    "coffee-script": "*"
+  , "docco": "*"
+  , "watchr": "*"
+  , "path": "*"
+  , "wrench": "*"
+  , "colors": "*"
+  }
+}
