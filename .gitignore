@@ -2,3 +2,4 @@
 adjectives.txt
 *.sublime*
 docs
+node_modules
