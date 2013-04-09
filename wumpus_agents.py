@@ -221,6 +221,11 @@ class RationalAgent(Agent):
   #     adjective()
   #     description()
 
+  def neighbor_set(self, known_world, room):
+    return set(n for d, (n, _) in known_world.neighbors(room).iteritems() if n != room)
+
+  def visited_set(self, known_world):
+    return set(r for r, sense in known_world.visited_rooms().iteritems())
 
   # ### bat_prob ###
   # Returns a map from known room numbers to the probability that each room
@@ -230,21 +235,27 @@ class RationalAgent(Agent):
   # or not you've visited each room
   @cached_prob
   def bat_prob(self, known_world):
-    # print '\n=================================================================='
-    # print 'known_world'
-    # print '------------------------------------------------------------------'
-    # print 'Current room:'
-    # print known_world.current_room()
-    # print 'Neighbors:'
-    # print known_world.neighbors(known_world.current_room())
-    # print 'Visited rooms:'
-    # print known_world.visited_rooms()
-    # print 'Fringe rooms:'
-    # print known_world.fringe_rooms()
-    # print 'Parse senses:'
-    # for key, val in known_world.visited_rooms().iteritems():
-    #   print parse_senses(val)
-    # print
+    print '\n=================================================================='
+    print 'known_world'
+    print '------------------------------------------------------------------'
+    print 'Current room:'
+    print known_world.current_room()
+    print 'Neighbors:'
+    print known_world.neighbors(known_world.current_room())
+    print 'Visited rooms:'
+    print known_world.visited_rooms()
+    print '##### My funcs'
+    print 'Neighbor set of current room:'
+    print self.neighbor_set(known_world, known_world.current_room())
+    print 'Visited set:'
+    print self.visited_set(known_world)
+    print '#####'
+    print 'Fringe rooms:'
+    print known_world.fringe_rooms()
+    print 'Parse senses:'
+    for key, val in known_world.visited_rooms().iteritems():
+      print parse_senses(val)
+    print
     print '\n=================================================================='
     print 'bat_prob'
     print '------------------------------------------------------------------'
@@ -278,7 +289,7 @@ class RationalAgent(Agent):
     return result
 
 
-  # ### pit_prob ####
+  # ### pit_prob(`self, known_world`) ####
   # Returns a map from known room numbers to the probability that each room
   # contains a Pit, given the information encoded in `known_world`
   #
@@ -306,9 +317,10 @@ class RationalAgent(Agent):
 
     # If we've visited the room (and we're still alive and doing probability
     # calculations), then it can't contain a pit
-    for room, sense in known_world.visited_rooms().iteritems():
+    for room in self.visited_set(known_world):
       result[room] = 0
 
+    # TODO: cache this
     # #### Calculate prior probability of a pit in a fringe room ####
     # This is just the `number of unseen pits / number of
     # unvisited rooms`.
@@ -333,20 +345,54 @@ class RationalAgent(Agent):
     print fringe_rooms
     print '----------------'
 
-    # ##### consistent_config #####
+    # ##### is_consistent(`config`) #####
     # Find whether a given pit configuration is consistent with observed
     # breezes. `config` is a list of IDs of rooms with pits.
     # TODO: memoize this
     def is_consistent(config):
+      print '#### in is_consistent with config: ', config
       result = True
-      for room in config:
-        for neighbor in known_world.neighbors(room):
-          if neighbor in known_world.visited_rooms():
-            sense_code = known_world.visited_rooms()[neighbor]
-            result = result and parse_senses(sense_code)[BREEZE]
+
+      # Represent the config as a mapping of fringe rooms to whether of not
+      # they have pits
+      has_pit = dict()
+      for room in fringe_rooms:
+        has_pit[room] = room in config
+
+      print ' has_pit: ', has_pit
+
+      # If `room` has a pit in this configuration, check that all its known
+      # neighbors have breezes
+      for room in fringe_rooms:
+        neighbors = self.neighbor_set(known_world, room)
+        print '  room: ', room
+        print '  neighbors: ', neighbors
+        if has_pit[room]:
+          print '  room has pit: '
+          for neighbor in neighbors:
+            if neighbor in self.visited_set(known_world):
+              sense_code = known_world.visited_rooms()[neighbor]
+              print '    neighbor:', neighbor
+              print '    sense code:', parse_senses(sense_code)[BREEZE]
+              result = result and parse_senses(sense_code)[BREEZE]
+
+      # Check that all rooms with breezes have at least one neighbor with a pit
+      # in this configuration
+      for room, sense_code in known_world.visited_rooms().iteritems():
+        if parse_senses(sense_code)[BREEZE]:
+          room_consistent = False
+          neighbors = self.neighbor_set(known_world, room)
+          for neighbor in neighbors:
+            if neighbor in fringe_rooms:
+              if has_pit[neighbor]:
+                room_consistent = True
+          result = result and room_consistent
+
+      print '  returning:', result
+      print '######################'
       return result
 
-    # ##### prob_of_config_given #####
+    # ##### prob_of_config_given(`query, config`) #####
     # Returns the (prior) probability of a configuration not including the
     # query room.
     def prob_of_config_given(query, config):
@@ -354,19 +400,27 @@ class RationalAgent(Agent):
       for room in fringe_rooms:
         # Exclude query room.
         if room is not query:
+          print "      Considering room", room
           if room in config:
             # There is a pit in `room`, so multiply by prior probability of a
             # pit in a room
+
+            print "        Pit: Mutliplying result by prior pit:", pit_prior_prob
+
             result *= pit_prior_prob
           elif room not in config:
             # There is no pit in `room`, so multiply by prior probability of no
             # pit in a room
+
+            print "        No Pit: Mutliplying result by (1 - prior pit):", (1 - pit_prior_prob)
+
             result *= (1 - pit_prior_prob)
+
       return result
 
     # The indices for the configurations are the IDs of the fringe rooms, since
     # a configuration is an assignment of pits to fringe rooms.
-    indices = fringe_rooms
+    indices = list(fringe_rooms)
     # If there are more pits than non-fringe, non-visited rooms, then the
     # difference must be in the fringe. So, the minimum number of pits in the
     # fringe is that difference: `num_other_rooms - num_pits`.
@@ -397,29 +451,19 @@ class RationalAgent(Agent):
       # Only consider configurations of pits in the fringe that are consistent with observed breezes.
       if is_consistent(config):
 
-        print "Config:", config
+        print "Config:", [ (room, room in config) for room in fringe_rooms ]
 
+        # Given this configuration of pits, compute the next term in the
+        # summation for each fringe room as the query
         for query in fringe_rooms:
-          print "  Query:", query
-          # Add the next term in the summation.  This term is given by `(prior
-          # probability of a pit) * (number of rooms in fringe not including
-          # query with pit) * (prior probability of no pit) * (number of rooms
-          # in fringe not including query with no pit)`
-          summation_term = 1
 
-          for room, has_pit in padded_config.iteritems():
-            if room is not query:
-              print "      room =",room
-              if has_pit:
-                # There's a pit in this room, so multiply by prior probability of a pit in a room:
-                print '      pit'
-                summation_term *= pit_prior_prob
-                print '      summation_term = ',summation_term
-              else:
-                # There's no pit in this room, so multiply by prior probability of no pit in a room:
-                print '      no pit'
-                summation_term *= (1 - pit_prior_prob)
-                print '      summation_term = ',summation_term
+          print "  Query:", query
+
+          # Add the next term in the summation for this query.  This term is
+          # given by `(prior probability of a pit) * (number of rooms in fringe
+          # not including query with pit) * (prior probability of no pit) *
+          # (number of rooms in fringe not including query with no pit)`
+          summation_term = prob_of_config_given(query, config)
           if query in config:
             print "    Adding to query HAS PIT probability:",summation_term
             result[query][PROB_OF_PIT] += summation_term
@@ -427,25 +471,38 @@ class RationalAgent(Agent):
             print "    Adding to query NO PIT probability:",summation_term
             result[query][PROB_OF_NO_PIT] += summation_term
 
-    # Now mutiply each fringe pit probability by the prior
+    # Now mutiply each fringe query by the prior probability of the query
+    # taking that particular value (pit / no pit)
     for query in fringe_rooms:
       result[query][PROB_OF_PIT] *= pit_prior_prob
-      result[query][PROB_OF_NO_PIT] *= pit_prior_prob
+      result[query][PROB_OF_NO_PIT] *= (1 - pit_prior_prob)
 
-    # And normalization constant
+    # Calculate and multiply by normalization constant
     for query in fringe_rooms:
+
       print "query:", query
-      # Calculate normalization constant
-      print result[query][PROB_OF_PIT]
-      print result[query][PROB_OF_NO_PIT]
+      print "result[query][PROB_OF_PIT] =",result[query][PROB_OF_PIT]
+      print "result[query][PROB_OF_NO_PIT] =",result[query][PROB_OF_NO_PIT]
+
+      # This gives the value for `alpha` since
+      # ```
+      # (sum over all values of query) * alpha = 1
+      # ```
       alpha = 1 / (result[query][PROB_OF_PIT] + result[query][PROB_OF_NO_PIT])
+
       print " ALPHA:", alpha
+
+      # Forget the probability of there being no pit in the room, since it's a
+      # boolean and we only need one of the two - and we're returning a map
+      # only to the probability of a pit, in any case
       result[query] = result[query][PROB_OF_PIT] * alpha
 
     print '----------------'
 
     print "  Pit result:"
     print ' ',result
+
+    # Finally, return the mapping
     return result
 
 
@@ -467,7 +524,7 @@ class RationalAgent(Agent):
 
     result = dict()
 
-    for room, sense in known_world.visited_rooms().iteritems():
+    for room in self.visited_set(known_world):
       result[room] = 0
 
     for room in known_world.fringe_rooms():
