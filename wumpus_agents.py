@@ -72,7 +72,10 @@ def cached_prob(dist_func):
 DEBUG = False
 def pprint(*stuff):
   if DEBUG:
-    print stuff
+    string = ''
+    for thing in stuff:
+      string += str(thing)
+    print string
 
 #### Global constants ####
 # Senses (evidence variables)
@@ -400,19 +403,19 @@ class RationalAgent(Agent):
       for room in fringe_rooms:
         # Exclude query room.
         if room is not query:
-          # print "      Considering room", room
+          # print "      Considering room ", room
           if room in config:
             # There is a pit in `room`, so multiply by prior probability of a
             # pit in a room
 
-            # print "        Pit: Mutliplying result by prior pit:", pit_prior_prob
+            # print "        Pit: Mutliplying result by prior pit: ", pit_prior_prob
 
             result *= pit_prior_prob
           elif room not in config:
             # There is no pit in `room`, so multiply by prior probability of no
             # pit in a room
 
-            # print "        No Pit: Mutliplying result by (1 - prior pit):", (1 - pit_prior_prob)
+            # print "        No Pit: Mutliplying result by (1 - prior pit): ", (1 - pit_prior_prob)
 
             result *= (1 - pit_prior_prob)
 
@@ -451,13 +454,13 @@ class RationalAgent(Agent):
       # Only consider configurations of pits in the fringe that are consistent with observed breezes.
       if is_consistent(config):
 
-        # print "Config:", [ (room, room in config) for room in fringe_rooms ]
+        # print "Config: ", [ (room, room in config) for room in fringe_rooms ]
 
         # Given this configuration of pits, compute the next term in the
         # summation for each fringe room as the query
         for query in fringe_rooms:
 
-          # print "  Query:", query
+          # print "  Query: ", query
 
           # Add the next term in the summation for this query.  This term is
           # given by `(prior probability of a pit) * (number of rooms in fringe
@@ -465,10 +468,10 @@ class RationalAgent(Agent):
           # (number of rooms in fringe not including query with no pit)`
           summation_term = prob_of_config_given(query, config)
           if query in config:
-            # print "    Adding to query HAS PIT probability:",summation_term
+            # print "    Adding to query HAS PIT probability: ",summation_term
             result[query][PROB_OF_PIT] += summation_term
           elif query not in config:
-            # print "    Adding to query NO PIT probability:",summation_term
+            # print "    Adding to query NO PIT probability: ",summation_term
             result[query][PROB_OF_NO_PIT] += summation_term
 
     for query in fringe_rooms:
@@ -478,9 +481,9 @@ class RationalAgent(Agent):
       result[query][PROB_OF_NO_PIT] *= (1 - pit_prior_prob)
       # Calculate and multiply by normalization constant
 
-      # print "query:", query
-      # print "result[query][PROB_OF_PIT] =",result[query][PROB_OF_PIT]
-      # print "result[query][PROB_OF_NO_PIT] =",result[query][PROB_OF_NO_PIT]
+      # print "query: ", query
+      # print "result[query][PROB_OF_PIT] = ",result[query][PROB_OF_PIT]
+      # print "result[query][PROB_OF_NO_PIT] = ",result[query][PROB_OF_NO_PIT]
 
       # This gives the value for `alpha` since
       # ```
@@ -488,7 +491,7 @@ class RationalAgent(Agent):
       # ```
       alpha = 1 / (result[query][PROB_OF_PIT] + result[query][PROB_OF_NO_PIT])
 
-      # print " ALPHA:", alpha
+      # print " ALPHA: ", alpha
 
       # Forget the probability of there being no pit in the room, since it's a
       # boolean and we only need one of the two - and we're returning a map
@@ -522,7 +525,7 @@ class RationalAgent(Agent):
     pprint('wumpus_prob')
     pprint('------------------------------------------------------------------')
 
-    pprint("Shots:",known_world.shots())
+    pprint("Shots: ",known_world.shots())
 
     result = dict()
 
@@ -548,6 +551,7 @@ class RationalAgent(Agent):
     wumpus_graves, num_killed_wumpii = shot_info()
 
     num_remaining_wumpii = known_world.num_wumpii() - num_killed_wumpii
+    print "Wumpii remaining: ",num_remaining_wumpii
 
     # Visited rooms and wumpus graves are safe
     known_safe = set(wumpus_graves + known_world.visited_rooms().keys())
@@ -555,7 +559,7 @@ class RationalAgent(Agent):
     # Prior probability of a Wumpus being in a given room is the `number of
     # wumpii / number of non-starting rooms`
     wumpus_prior = known_world.num_wumpii() / (known_world.num_rooms() - 1)
-    pprint("wumpus_prior:",wumpus_prior)
+    pprint("wumpus_prior: ",wumpus_prior)
 
     # A wumpus can't be in a known safe room
     for room in known_safe:
@@ -587,17 +591,17 @@ class RationalAgent(Agent):
       for room in frontier:
         # Exclude query room.
         if room is not query:
-          pprint("      Considering room", room)
+          pprint("      Considering room ", room)
           if room in config:
 
-            pprint("        wumpus: Mutliplying result by wumpus_prior:", wumpus_prior)
+            pprint("        wumpus: Mutliplying result by wumpus_prior: ", wumpus_prior)
 
             # There is a wumpus in `room`, so multiply by prior probability of a
             # wumpus in a room
             result *= wumpus_prior
           elif room not in config:
 
-            pprint("        no wumpus: Mutliplying result by (1 - wumpus_prior):", (1 - wumpus_prior))
+            pprint("        no wumpus: Mutliplying result by (1 - wumpus_prior): ", (1 - wumpus_prior))
 
             # There is no pit in `room`, so multiply by prior probability of no
             # pit in a room
@@ -609,39 +613,54 @@ class RationalAgent(Agent):
     # wumpus value of the query room, a configuration of wumpii in the
     # frontier, and known safe rooms
     def calculate_stench_prob(known_safe, config, frontier):
-      # Corresponds to `stenches = [still: [fake: 0, real: 0], breezy: [fake: 0, real: 0]]`
-      # Boolean indexing FTW.
+      # Corresponds to `[still: [fake: 0, real: 0], breezy: [fake: 0, real:
+      # 0]]`. Boolean indexing FTW.
       stenches = [[0,0],[0,0]]
+      nonstenches = [[0,0],[0,0]]
 
       for room, sense_code in known_world.visited_rooms().iteritems():
         senses = parse_senses(sense_code)
-        if senses[STENCH]:
 
-          # Is the room breezy?
-          has_breeze = senses[BREEZE]
+        # Is the room breezy?
+        has_breeze = senses[BREEZE]
 
-          # Is the stench real (given this configuration of wumpii and wumpus graves)?
-          is_real = 0
-          for neighbor in self.neighbor_set(known_world, room):
-            if neighbor in config or neighbor in wumpus_graves:
-              is_real = 1
-              break
-          if room in config or room in wumpus_graves:
+        # Would a stench be real (given this configuration of wumpii and wumpus graves)?
+        is_real = 0
+        for neighbor in self.neighbor_set(known_world, room):
+          if neighbor in config or neighbor in wumpus_graves:
             is_real = 1
+            break
+        if room in config or room in wumpus_graves:
+          is_real = 1
 
+        if senses[STENCH]:
           # Count this stench according to breezy/still and real/fake
           stenches[is_real][has_breeze] += 1
+        elif not senses[STENCH]:
+          nonstenches[is_real][has_breeze] += 1
 
-      pprint("stenches:", stenches)
+      # self.stench_prob = lambda real, breeze: (world.real_breeze_stench if breeze else world.real_calm_stench) if real else (world.false_breeze_stench if breeze else world.false_calm_stench)
+      pprint("stenches: ", stenches)
       pprint("stench terms:")
-      pprint(known_world.stench_prob(0,0) , stenches[0][0])
-      pprint(known_world.stench_prob(0,1) , stenches[0][1])
-      pprint(known_world.stench_prob(1,0) , stenches[1][0])
-      pprint(known_world.stench_prob(1,1) , stenches[1][1])
-      return ( known_world.stench_prob(0,0) ** stenches[0][0] *
-               known_world.stench_prob(0,1) ** stenches[0][1] *
-               known_world.stench_prob(1,0) ** stenches[1][0] *
-               known_world.stench_prob(1,1) ** stenches[1][1] )
+      pprint(known_world.stench_prob(0,0) ,': ', stenches[0][0])
+      pprint(known_world.stench_prob(0,1) ,': ', stenches[0][1])
+      pprint(known_world.stench_prob(1,0) ,': ', stenches[1][0])
+      pprint(known_world.stench_prob(1,1) ,': ', stenches[1][1])
+      pprint("nonstenches: ", nonstenches)
+      pprint("non-stench terms:")
+      pprint((1 - known_world.stench_prob(0,0)),': ', nonstenches[0][0])
+      pprint((1 - known_world.stench_prob(0,1)),': ', nonstenches[0][1])
+      pprint((1 - known_world.stench_prob(1,0)),': ', nonstenches[1][0])
+      pprint((1 - known_world.stench_prob(1,1)),': ', nonstenches[1][1])
+      pprint((1 - known_world.stench_prob(1,1)),': ', nonstenches[1][1])
+      return ( (      known_world.stench_prob(0,0)  **    stenches[0][0] *
+                      known_world.stench_prob(0,1)  **    stenches[0][1] *
+                      known_world.stench_prob(1,0)  **    stenches[1][0] *
+                      known_world.stench_prob(1,1)  **    stenches[1][1] ) *
+               ( (1 - known_world.stench_prob(0,0)) ** nonstenches[0][0] *
+                 (1 - known_world.stench_prob(0,1)) ** nonstenches[0][1] *
+                 (1 - known_world.stench_prob(1,0)) ** nonstenches[1][0] *
+                 (1 - known_world.stench_prob(1,1)) ** nonstenches[1][1] ) )
 
     # The indices for the configurations are the IDs of the frontier rooms, since
     # a configuration is an assignment of wumpii to frontier rooms.
@@ -669,7 +688,7 @@ class RationalAgent(Agent):
       # configuration, and known safe rooms
       stench_prob = calculate_stench_prob(known_safe, config, frontier)
 
-      pprint("   stench prob:",stench_prob)
+      pprint("   stench prob: ",stench_prob)
 
       for query in frontier:
         if query in config:
@@ -678,25 +697,25 @@ class RationalAgent(Agent):
           query_value = NO_WUMPUS
         # The probability of this configuration given the query
         config_prob = prob_of_config_given(query, config)
-        pprint("   config_prob:",config_prob)
+        pprint("   config_prob: ",config_prob)
         # The summation term for this query value is given by [ conditional
         # probability of observed stenches given known safe rooms, the query,
         # and this configuration (`stench_prob`) ] * [ the probability of this
         # configuration given the query (`config_prob`) ]
         result[query][query_value] += (stench_prob * config_prob)
         pprint("   adding ",(stench_prob*config_prob))
-        pprint("   result[",query,"][",query_value,"] is now:", result[query][query_value])
+        pprint("   result[ ",query," ][ ",query_value,"] is now: ", result[query][query_value])
 
     # Now mutiply each frontier query by the prior probability of the query
     # taking that particular value (WUMPUS or NO_WUMPUS), then calculate and
     # multiply by the normalization constant, `alpha`
     for query in frontier:
-      pprint("pre-prior-multiplied W prob for ",query,":",result[query][WUMPUS])
-      pprint("pre-prior-multiplied NO_W prob for ",query,":",result[query][NO_WUMPUS])
+      pprint("pre-prior-multiplied W prob for ",query,": ",result[query][WUMPUS])
+      pprint("pre-prior-multiplied NO_W prob for ",query,": ",result[query][NO_WUMPUS])
       result[query][WUMPUS] *= wumpus_prior
       result[query][NO_WUMPUS] *= (1 - wumpus_prior)
-      pprint("pre-normalized W prob for ",query,":",result[query][WUMPUS])
-      pprint("pre-normalized W prob for ",query,":",result[query][NO_WUMPUS])
+      pprint("pre-normalized W prob for ",query,": ",result[query][WUMPUS])
+      pprint("pre-normalized W prob for ",query,": ",result[query][NO_WUMPUS])
 
       # This gives the value for `alpha` since
       # ```
