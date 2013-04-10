@@ -1,8 +1,2 @@
-*.pyc
-adjectives.txt
-*.sublime*
-docs
-node_modules
-seed2-map
-zero-div-error
-trials
+*
+!*.py
