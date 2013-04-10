@@ -21,7 +21,7 @@ def print_hazard_senses(sense):
 		print "You perceive the CHITTERING of Bats from above"
 
 # Print an English description of the reaction Senses
-def print_reaction_senses(sense):	
+def print_reaction_senses(sense):
 	if sense & Senses.BUMP:
 		print "You perceive a loud BUMP"
 	if sense & Senses.SCREAM:
@@ -47,7 +47,7 @@ strings = dict(T="test_file")
 # Grab the agent type
 agent_type = "Human"
 start = 1
-if len(sys.argv) > 1:	
+if len(sys.argv) > 1:
 	flag = sys.argv[1][1:].upper()
 	start = 2
 	if flag not in ints and flag not in floats and flag not in strings:
@@ -112,7 +112,7 @@ def describe(world, path, dirs, senses, end=False):
 			neighbors = world.linked_doors[r]
 			for d in sorted(neighbors.keys(), key=Directions.key):
 				n, d2 = neighbors[d]
-				print "\t%s: %s room, %s side." % (Directions.key(d), world.rooms[n][0], Directions.key(d2))
+				print "\t[%s] %s: %s room, %s side." % (n, Directions.key(d), world.rooms[n][0], Directions.key(d2))
 
 			# Print a bat message, if applicable
 			if i < len(path) - 1:
@@ -158,7 +158,7 @@ def run_game():
 	# If the last thing we did was move, describe it
 	if action == Actions.MOVE:
 		describe(world, path, dirs, senses, True)
-		
+
 	# Output the results
 	print_reaction_senses(senses[-1] & Senses.BUMP)
 	if known_world.shots() and known_world.shots()[-1][2] & Senses.PAIN:
