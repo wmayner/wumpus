@@ -345,7 +345,7 @@ class RationalAgent(Agent):
     known_pitsafe_rooms = set()
     for room, sense in known_world.visited_rooms().iteritems():
       if not sense & Senses.BREEZE:
-        for d, (n, _) in known_world.neighbors(room):
+        for d, (n, _) in known_world.neighbors(room).iteritems():
           known_pitsafe_rooms.add(n)
 
     # The indices for the configurations are the IDs of the fringe rooms, since
@@ -363,11 +363,11 @@ class RationalAgent(Agent):
     # The maximum number of pits in the fringe is just the total number of pits.
     max_count = known_world.num_pits()
 
-    consistent_config_count = 0
     # Now iterate through all possible configurations of pits in the fringe
     # that have at least `min_count` pits, and then iterate through each fringe
     # room, counting the configuration if it's consistent with observed
     # breezes.
+    consistent_config_count = 0
     for config in RationalAgent.configs(self, indices, min_count, max_count):
       if is_consistent(config):
         num_other_pits = known_world.num_pits() - len(config)
@@ -434,187 +434,73 @@ class RationalAgent(Agent):
     for room in known_safe:
       result[room] = 0
 
-    # # The frontier is the set of rooms on the fringe that aren't known to be safe
-    # frontier = []
-    # for room in known_world.fringe_rooms():
-    #   if room not in known_safe:
-    #     frontier += [ room ]
+    # The frontier is the set of rooms on the fringe that aren't known to be safe
+    frontier = [room for room in known_world.fringe_rooms() if room not in known_safe]
 
-    # pprint("frontier: ",frontier)
-
-    # # The sum over frontier rooms starts at zero for each query room and for each
-    # # possible value of the query, i.e. WUMPUS and NO_WUMPUS
-    # for query in frontier:
-    #   result[query] = [0, 0]
-
-    # # Constants for indexing into the entries of the result dict
-    # NO_WUMPUS = 0
-    # WUMPUS = 1
-
-    # # ##### prob_of_config_given(`query, config`) #####
-    # # Returns the (prior) probability of a configuration not including the
-    # # query room.
-    # def prob_of_config_given(query, config):
-    #   pprint("  Query: ",query)
-    #   result = 1
-    #   for room in frontier:
-    #     # Exclude query room.
-    #     if room is not query:
-    #       pprint("      Considering room ", room)
-    #       if room in config:
-
-    #         pprint("        wumpus: Mutliplying result by wumpus_prior: ", wumpus_prior)
-
-    #         # There is a wumpus in `room`, so multiply by prior probability of a
-    #         # wumpus in a room
-    #         result *= wumpus_prior
-    #       elif room not in config:
-
-    #         pprint("        no wumpus: Mutliplying result by (1.0 - wumpus_prior): ", (1.0 - wumpus_prior))
-
-    #         # There is no pit in `room`, so multiply by prior probability of no
-    #         # pit in a room
-    #         result *= (1.0 - wumpus_prior)
-    #   return result
-
-    # # ##### calculate_stench_prob(`known_safe, query, config, frontier`) #####
-    # # Calculates the probability of an observed pattern of stenches given the
-    # # wumpus value of the query room, a configuration of wumpii in the
-    # # frontier, and known safe rooms
-    # def calculate_stench_prob(known_safe, config, frontier):
-    #   # Corresponds to `[fake: [still: 0, breezy: 0], real: [still: 0, breezy:
-    #   # 0]]`. Boolean indexing FTW.
-    #   stenches = [[0,0],[0,0]]
-    #   nonstenches = [[0,0],[0,0]]
-
-    #   for room, sense_code in known_world.visited_rooms().iteritems():
-    #     senses = parse_senses(sense_code)
-
-    #     # Is the room breezy?
-    #     has_breeze = senses[BREEZE]
-
-    #     # Would a stench be real (given this configuration of wumpii and wumpus graves)?
-    #     is_real = 0
-    #     for neighbor in self.neighbor_set(known_world, room):
-    #       if neighbor in config or neighbor in wumpus_graves:
-    #         is_real = 1
-    #         break
-    #     if room in config or room in wumpus_graves:
-    #       is_real = 1
-
-    #     if senses[STENCH]:
-    #       # Count this stench according to breezy/still and real/fake
-    #       stenches[is_real][has_breeze] += 1
-    #     elif not senses[STENCH]:
-    #       pprint('nonstench: ',room, ' is_real: ', is_real, ' is_breezy', has_breeze)
-    #       nonstenches[is_real][has_breeze] += 1
-
-    #   # self.stench_prob = lambda real, breeze: (world.real_breeze_stench if breeze else world.real_calm_stench) if real else (world.false_breeze_stench if breeze else world.false_calm_stench)
-    #   pprint("stenches: ", stenches)
-    #   pprint("stench terms:")
-    #   pprint(known_world.stench_prob(0,0) ,': ', stenches[0][0])
-    #   pprint(known_world.stench_prob(0,1) ,': ', stenches[0][1])
-    #   pprint(known_world.stench_prob(1,0) ,': ', stenches[1][0])
-    #   pprint(known_world.stench_prob(1,1) ,': ', stenches[1][1])
-    #   pprint("nonstenches: ", nonstenches)
-    #   pprint("non-stench terms:")
-    #   pprint((1.0 - known_world.stench_prob(0,0)),': ', nonstenches[0][0])
-    #   pprint((1.0 - known_world.stench_prob(0,1)),': ', nonstenches[0][1])
-    #   pprint((1.0 - known_world.stench_prob(1,0)),': ', nonstenches[1][0])
-    #   pprint((1.0 - known_world.stench_prob(1,1)),': ', nonstenches[1][1])
-    #   return ( (      known_world.stench_prob(0,0)  **    stenches[0][0] *
-    #                   known_world.stench_prob(0,1)  **    stenches[0][1] *
-    #                   known_world.stench_prob(1,0)  **    stenches[1][0] *
-    #                   known_world.stench_prob(1,1)  **    stenches[1][1] ) *
-    #            ( (1.0 - known_world.stench_prob(0,0)) ** nonstenches[0][0] *
-    #              (1.0 - known_world.stench_prob(0,1)) ** nonstenches[0][1] *
-    #              (1.0 - known_world.stench_prob(1,0)) ** nonstenches[1][0] *
-    #              (1.0 - known_world.stench_prob(1,1)) ** nonstenches[1][1] ) )
-
-    # # The indices for the configurations are the IDs of the frontier rooms, since
-    # # a configuration is an assignment of wumpii to frontier rooms.
-    # indices = frontier
-    # # If there are more wumpii than non-frontier, non-visited rooms, then the
-    # # difference must be in the frontier. So, the minimum number of wumpii in the
-    # # frontier is that difference: `num_other_rooms - num_remaining_wumpii`.
-    # num_other_rooms = known_world.num_rooms() - len(known_safe) - len(frontier)
-    # pprint("num_other_rooms: ", num_other_rooms)
-    # min_count = max(0, -(num_other_rooms - num_remaining_wumpii))
-    # # min_count = 0
-    # pprint("min_count: ", min_count)
-    # # The maximum number of wumpii in the frontier is just the number of remaining wumpii.
-    # max_count = num_remaining_wumpii
-    # # Now iterate through all possible configurations of wumpii in the frontier
-    # # that have at least `min_count` wumpii, and then iterate through each frontier
-    # # room, calculating the probability of the pattern of observed stenches
-    # # given known safe rooms and WUMPUS or NO_WUMPUS in query room
-    # #
-    # # Note that we're also multiplying by the prior probability of each
-    # # configuration. This is just `(the prior probability of a wumpus in a room) *
-    # # (the number of wumpii in the configuration, not including query) * (the
-    # # prior probability of no wumpus in a room) * (the number of rooms devoid
-    # # of wumpii in the configuration, not including query)`
-    # for config in RationalAgent.configs(self, indices, min_count, max_count):
-    #   pprint("Considering config: ",config)
-    #   # The probability of observed stench pattern given this
-    #   # configuration, and known safe rooms
-    #   stench_prob = calculate_stench_prob(known_safe, config, frontier)
-
-    #   pprint("   stench prob: ",stench_prob)
-
-    #   for query in frontier:
-    #     if query in config:
-    #       query_value = WUMPUS
-    #     elif query not in config:
-    #       query_value = NO_WUMPUS
-    #     # Don't bother calculating config_prob if stench_prob is 0
-    #     if stench_prob != 0:
-    #       # The probability of this configuration given the query
-    #       config_prob = prob_of_config_given(query, config)
-    #       pprint("   config_prob: ",config_prob)
-    #     # The summation term for this query value is given by [ conditional
-    #     # probability of observed stenches given known safe rooms, the query,
-    #     # and this configuration (`stench_prob`) ] * [ the probability of this
-    #     # configuration given the query (`config_prob`) ]
-    #       result[query][query_value] += (stench_prob * config_prob)
-    #       pprint("   adding ",(stench_prob*config_prob))
-    #     else:
-    #       result[query][query_value] += 0
-    #     pprint("   result[ ",query," ][ ",query_value,"] is now: ", result[query][query_value])
-
-    # # Now mutiply each frontier query by the prior probability of the query
-    # # taking that particular value (WUMPUS or NO_WUMPUS), then calculate and
-    # # multiply by the normalization constant, `alpha`
-    # for query in frontier:
-    #   pprint("pre-prior-multiplied W prob for ",query,": ",result[query][WUMPUS])
-    #   pprint("pre-prior-multiplied NO_W prob for ",query,": ",result[query][NO_WUMPUS])
-    #   result[query][WUMPUS] *= wumpus_prior
-    #   result[query][NO_WUMPUS] *= (1.0 - wumpus_prior)
-    #   pprint("pre-normalized W prob for ",query,": ",result[query][WUMPUS])
-    #   pprint("pre-normalized W prob for ",query,": ",result[query][NO_WUMPUS])
-
-    #   # This gives the value for `alpha` since
-    #   # ```
-    #   # (sum over all values of query) * alpha = 1
-    #   # ```
-    #   alpha = 1 / (result[query][WUMPUS] + result[query][NO_WUMPUS])
-    #   pprint("Alpha: ",alpha)
-    #   # Forget the probability of there being NO_WUMPUS in the room, since it's
-    #   # a boolean and we only need one of the two - and we're returning a map
-    #   # only to the probability of a pit, in any case
-    #   result[query] = result[query][WUMPUS] * alpha
-
-    for room in known_world.visited_rooms().keys():
-      result[room] = 0
-    for room in known_world.fringe_rooms():
+    # The sum over frontier rooms starts at zero
+    for room in frontier:
       result[room] = 0
 
-    pprint("  Wumpus result:")
-    pprint(' ',result)
+    # ##### calculate_stench_prob(`config`) #####
+    # Calculates the probability of an observed pattern of stenches given the
+    # configuration of wumpii
+    def calculate_stench_prob(config):
+      # Corresponds to `[fake: [still: 0, breezy: 0], real: [still: 0, breezy:
+      # 0]]`. Boolean indexing FTW.
+      stenches = [[0,0],[0,0]]
+      nonstenches = [[0,0],[0,0]]
 
-    pprint('==================================================================\n')
+      for room, sense_code in known_world.visited_rooms().iteritems():
+        senses = parse_senses(sense_code)
+        # Is the room breezy?
+        has_breeze = senses[BREEZE]
+        # Would a stench be real (given this configuration of wumpii and wumpus graves)?
+        is_real = 0
+        for neighbor in self.neighbor_set(known_world, room):
+          if neighbor in config or neighbor in wumpus_graves:
+            is_real = 1
+            break
+        if room in config or room in wumpus_graves:
+          is_real = 1
+        if senses[STENCH]:
+          # Count this stench according to breezy/still and real/fake
+          stenches[is_real][has_breeze] += 1
+        elif not senses[STENCH]:
+          nonstenches[is_real][has_breeze] += 1
 
-    # print parse_senses(known_world.visited_rooms()[known_world.current_room()])
+      return ( (        known_world.stench_prob(0,0)  **    stenches[0][0] *
+                        known_world.stench_prob(0,1)  **    stenches[0][1] *
+                        known_world.stench_prob(1,0)  **    stenches[1][0] *
+                        known_world.stench_prob(1,1)  **    stenches[1][1] ) *
+               ( (1.0 - known_world.stench_prob(0,0)) ** nonstenches[0][0] *
+                 (1.0 - known_world.stench_prob(0,1)) ** nonstenches[0][1] *
+                 (1.0 - known_world.stench_prob(1,0)) ** nonstenches[1][0] *
+                 (1.0 - known_world.stench_prob(1,1)) ** nonstenches[1][1] ) )
+
+    # The indices for the configurations are the IDs of the frontier rooms, since
+    # a configuration is an assignment of wumpii to frontier rooms.
+    indices = frontier
+    # If there are more wumpii than non-frontier, non-visited rooms, then the
+    # difference must be in the frontier. So, the minimum number of wumpii in the
+    # frontier is that difference: `num_other_rooms - num_remaining_wumpii`.
+    num_other_rooms = known_world.num_rooms() - len(known_safe) - len(frontier)
+    pprint("num_other_rooms: ", num_other_rooms)
+    min_count = max(0, -(num_other_rooms - num_remaining_wumpii))
+    # The maximum number of wumpii in the frontier is just the number of remaining wumpii.
+    max_count = num_remaining_wumpii
+    # Now iterate through all possible configurations of wumpii in the frontier
+    # that have at least `min_count` wumpii
+    consistent_config_count = 0
+    for config in RationalAgent.configs(self, indices, min_count, max_count):
+      num_other_wumpii = known_world.num_wumpii() - len(config)
+      summation_term = self.choose(num_other_rooms, num_other_wumpii) * calculate_stench_prob(config)
+      consistent_config_count += summation_term
+      for fringe_room in config:
+        result[fringe_room] += summation_term
+
+    # Divide out by total consistent config counts
+    for fringe_room in frontier:
+      result[fringe_room] = result[fringe_room] / consistent_config_count
 
     return result
 
@@ -704,25 +590,14 @@ class NaiveSafeAgent(SafeAgent):
   def danger_prob(self, known_world):
     # Remember that different hazards are not mutually exclusive, but they are independent!
     # You may want to check out the Wikipedia article on the Inclusion-Exclusion principle
-
     result = dict()
-
-    pprint("DEBUG DANGER: ","FRINGE ROOMS: ",known_world.fringe_rooms())
-
     # Unless I'm totally mistaken, this is just
     # `1.0 - P(NO_BAT)*P(NO_PIT)*P(NO_WUMPUS)`
     for room in set().union(known_world.visited_rooms().keys(), known_world.fringe_rooms()):
-      pprint("DEBUG DANGER: ","ROOM: ",room,(" (visited)" if room in known_world.visited_rooms().keys() else ''))
       b = self.bat_prob(room, known_world)
-      pprint("DEBUG DANGER: ","\t\tb-prob of ",b)
       p = self.pit_prob(room, known_world)
-      pprint("DEBUG DANGER: ","\t\tp-prob of ",p)
       w = self.wumpus_prob(room, known_world)
-      pprint("DEBUG DANGER: ","\t\tw-prob of ",w,",  cutoff = ", (1.0 - known_world.stench_prob(False, False)))
-      pprint("DEBUG DANGER: ","\t((1-b)*(1-p)*(1-w)) = ",((1.0-b)*(1.0-p)*(1.0-w)))
       result[room] = (1.0 - ((1.0-b)*(1.0-p)*(1.0-w)))
-      pprint("DEBUG DANGER: ","\tdanger_prob(",room,"): ",result[room])
-
     return result
 
 
