@@ -290,10 +290,6 @@ class RationalAgent(Agent):
   #       pit_query, pit_fringe_room) * P(pit_fringe_room) ]
   @cached_prob
   def pit_prob(self, known_world):
-    pprint('------------------------------------------------------------------')
-    pprint('pit_prob')
-    pprint('------------------------------------------------------------------')
-
     # This will hold the mapping to be returned
     result = dict()
 
@@ -425,7 +421,6 @@ class RationalAgent(Agent):
     wumpus_graves, cleared_rooms, num_killed_wumpii = shot_info()
 
     num_remaining_wumpii = known_world.num_wumpii() - num_killed_wumpii
-    pprint("Wumpii remaining: ",num_remaining_wumpii)
 
     # Visited rooms and rooms cleared by arrows are safe
     known_safe = set(cleared_rooms + known_world.visited_rooms().keys())
@@ -620,8 +615,110 @@ class BatSafeAgent(SafeAgent):
 
 # ## CleverAgent ##
 class CleverAgent(RationalAgent):
+  def __init__(self):
+    RationalAgent.__init__(self)
+
+  @cached_prob
+  def danger(self, known_world):
+    # Remember that different hazards are not mutually exclusive, but they are independent!
+    # You may want to check out the Wikipedia article on the Inclusion-Exclusion principle
+    result = dict()
+    for room in set().union(known_world.visited_rooms().keys(), known_world.fringe_rooms()):
+      b = self.bat_prob(room, known_world)
+
+      M = known_world.bat_prob()
+      bat_danger = known_world['bat_danger']
+
+      p = self.pit_prob(room, known_world)
+      w = self.wumpus_prob(room, known_world)
+
+      result[room] = (1.0 - ((1.0-(b*bat_danger*M))*(1.0-p)*(1.0-w)))
+    return result
+
+
   def action(self, known_world, rng):
-    raise NotImplementedError()
+    # Takes a shot-tuple and returns a tuple: (the ID of the room it was shot
+    # into, whether or not that shot tuple killed a wumpus)
+    def killshot(shot):
+      origin, direction, sense = shot
+      for d, (n, d2) in known_world.neighbors(origin).iteritems():
+        if d is direction:
+          return (n, 1 if sense is Senses.SCREAM else 0)
+
+    # Returns a tuple: (list of wumpus graves, list of rooms known to be safe
+    # from shooting, number of remaining wumpii in the maze)
+    def shot_info():
+      num_killed_wumpii = 0
+      cleared_rooms = []
+      wumpus_graves = []
+      for shot in known_world.shots():
+        target, got_one = killshot(shot)
+        cleared_rooms += [target]
+        if got_one:
+          wumpus_graves += [target]
+        num_killed_wumpii += got_one
+      return (wumpus_graves, cleared_rooms, num_killed_wumpii)
+
+    wumpus_graves, cleared_rooms, num_killed_wumpii = shot_info()
+    num_remaining_wumpii = known_world.num_wumpii() - num_killed_wumpii
+    num_remaining_arrows = known_world.num_arrows() - len(known_world.shots())
+
+    # Estimate of danger of getting moved by a bat
+    if 'bat_danger' not in known_world:
+      R = known_world.num_rooms()
+      w = num_remaining_wumpii / R
+      p = known_world.num_pits() / R
+      known_world['bat_danger'] = (1 - (1 - w)*(1 - p))
+
+    # Measure of how valuable arrows are
+    arrow_tolerance = num_remaining_arrows / num_remaining_wumpii
+
+    cache = known_world.setdefault(self.action, {})
+
+    # First, check for an express move
+    path = cache.get("express", [])
+    if path:
+      cache["express"] = path[1:]
+      return (Actions.MOVE, path[0])
+
+    # Then, check for a target move
+    target = cache.pop("target", None)
+    if target is not None:
+      return target
+
+    # Otherwise, compute a list of places we might possibly want to go. This will
+    # consist of just the reachable fringe rooms, unless there are none, in which
+    # case it will be the reachable visited rooms containing Bats
+    room = known_world.current_room()
+    visited = known_world.visited_rooms()
+    reachable = self.reachable(room, known_world)
+    fringe = known_world.fringe_rooms() & reachable
+    if not fringe:
+      fringe = set(r for r, s in visited.iteritems() if s & Senses.CHITTERING and r != room) & reachable
+    cutoff = 1.0 - known_world.stench_prob(False, False)
+    cutoff = cutoff / arrow_tolerance
+
+    best = 2, []
+    paths = self.safe_paths(room, known_world)
+    for f in fringe:
+      if f == room:
+        raise Exception("Bad!")
+      # If we know where a Wumpus is and can reach a vantage point, shoot it!
+      if f not in visited and self.wumpus_prob(f, known_world) >= cutoff:
+        path = paths[f]
+        cache["express"] = path[:-1]
+        cache["target"] = (Actions.SHOOT, path[-1])
+        return self.action(known_world, rng)
+
+      # Otherwise, see what the danger probability is for entering the room
+      danger = self.danger(f, known_world)
+      if danger < best[0]:
+        best = danger, [f]
+      elif danger == best[0]:
+        best[1].append(f)
+
+    cache["express"] = paths[rng.choice(best[1])]
+    return self.action(known_world, rng)
 
 # *Vim Modeline:*
 # vim: set foldmethod=indent foldlevel=0
