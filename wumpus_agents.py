@@ -659,7 +659,19 @@ class CleverAgent(RationalAgent):
         num_killed_wumpii += got_one
       return (wumpus_graves, cleared_rooms, num_killed_wumpii)
 
-    wumpus_graves, cleared_rooms, num_killed_wumpii = shot_info()
+    # Update shot_info if stale
+    if 'stale_shot_info' not in known_world:
+      wumpus_graves, cleared_rooms, num_killed_wumpii = shot_info()
+      known_world['shot_info'] = wumpus_graves, cleared_rooms, num_killed_wumpii
+      known_world['stale_shot_info'] = False
+    elif known_world['stale_shot_info']:
+      wumpus_graves, cleared_rooms, num_killed_wumpii = shot_info()
+      known_world['shot_info'] = wumpus_graves, cleared_rooms, num_killed_wumpii
+      known_world['stale_shot_info'] = False
+    # Otherwise get it from cache
+    else:
+      wumpus_graves, cleared_rooms, num_killed_wumpii = known_world['shot_info']
+
     num_remaining_wumpii = known_world.num_wumpii() - num_killed_wumpii
     num_remaining_arrows = known_world.num_arrows() - len(known_world.shots())
 
@@ -684,6 +696,8 @@ class CleverAgent(RationalAgent):
     # Then, check for a target move
     target = cache.pop("target", None)
     if target is not None:
+      # Refresh shot_info()
+      known_world['stale_shot_info'] = True
       return target
 
     # Otherwise, compute a list of places we might possibly want to go. This will
