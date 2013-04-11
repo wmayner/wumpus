@@ -462,7 +462,6 @@ class RationalAgent(Agent):
     # difference must be in the frontier. So, the minimum number of wumpii in the
     # frontier is that difference: `num_other_rooms - num_remaining_wumpii`.
     num_other_rooms = known_world.num_rooms() - len(known_safe) - len(frontier)
-    pprint("num_other_rooms: ", num_other_rooms)
     min_count = max(0, -(num_other_rooms - num_remaining_wumpii))
     # The maximum number of wumpii in the frontier is just the number of remaining wumpii.
     max_count = num_remaining_wumpii
@@ -470,7 +469,7 @@ class RationalAgent(Agent):
     # that have at least `min_count` wumpii
     consistent_config_count = 0
     for config in RationalAgent.configs(self, indices, min_count, max_count):
-      num_other_wumpii = known_world.num_wumpii() - len(config)
+      num_other_wumpii = num_remaining_wumpii - len(config)
       summation_term = self.choose(num_other_rooms, num_other_wumpii) * calculate_stench_prob(config)
       consistent_config_count += summation_term
       for fringe_room in config:
