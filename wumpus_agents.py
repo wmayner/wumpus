@@ -98,24 +98,6 @@ BAT = 'BAT'
 PIT = 'PIT'
 WUMPUS = 'WUMPUS'
 
-
-#### parse_senses ####
-# Takes a decimal number representing sensory information
-# Returns a dict mapping senses to booleans indicating their presence
-#
-# `Senses = enum(STENCH=1, BREEZE=2, CHITTERING=4, BUMP=8, SCREAM=16, PAIN=32)`
-#
-def parse_senses(sense_info):
-  # Convert sense info to binary, split on `'b'` to get just the bit string, add
-  # leading zeros so there's a digit for each sense, reverse it
-  sense_info = bin(sense_info).split('b')[1].zfill(6)[::-1]
-
-  senses = dict()
-  for digit, sense in enumerate([STENCH, BREEZE, CHITTERING, BUMP, SCREAM, PAIN]):
-    senses[sense] = int(sense_info[digit])
-  return senses
-
-
 # ## Rational Agent ##
 class RationalAgent(Agent):
   _memo_choose = {}
@@ -257,7 +239,7 @@ class RationalAgent(Agent):
     # Number of bats seen is just the sum of the rooms we've seen with
     # CHITTERING.
     for room, sense_code in known_world.visited_rooms().iteritems():
-      result[room] = parse_senses(sense_code)[CHITTERING]
+      result[room] = sense_code & Senses.CHITTERING
     num_bats_seen = sum(result.itervalues())
 
     # Probability of finding a bat in an unvisited room is `number of bats in
@@ -446,9 +428,10 @@ class RationalAgent(Agent):
       nonstenches = [[0,0],[0,0]]
 
       for room, sense_code in known_world.visited_rooms().iteritems():
-        senses = parse_senses(sense_code)
+        # Is the room smelly?
+        has_stench = int(bool(sense_code & Senses.STENCH))
         # Is the room breezy?
-        has_breeze = senses[BREEZE]
+        has_breeze = int(bool(sense_code & Senses.BREEZE))
         # Would a stench be real (given this configuration of wumpii and wumpus graves)?
         is_real = 0
         for neighbor in self.neighbor_set(known_world, room):
@@ -457,10 +440,10 @@ class RationalAgent(Agent):
             break
         if room in config or room in wumpus_graves:
           is_real = 1
-        if senses[STENCH]:
+        if has_stench:
           # Count this stench according to breezy/still and real/fake
           stenches[is_real][has_breeze] += 1
-        elif not senses[STENCH]:
+        else:
           nonstenches[is_real][has_breeze] += 1
 
       return ( (        known_world.stench_prob(0,0)  **    stenches[0][0] *
