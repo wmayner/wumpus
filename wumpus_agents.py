@@ -69,18 +69,20 @@ def cached_prob(dist_func):
   return _cached_prob
 
 
+DEBUGFLAGS = [
+  'DEBUG DANGER: ',
+  ]
 DEBUG = 'DEBUG DANGER: '
-DEBUG = False
-def pprint(*stuff):
+DEBUG = 1
+def pprint(*args):
   if not DEBUG:
     return
-  import re
   string = ''
-  for thing in stuff:
+  for thing in args:
     string += str(thing)
-  if re.compile(r"\d").match(string) == None and DEBUG == 1:
+  if args[0] in DEBUGFLAGS:
     print string
-  elif DEBUG == stuff[0]:
+  elif DEBUG is args[0]:
     print string
 
 #### Global constants ####
@@ -684,8 +686,8 @@ class RationalAgent(Agent):
     # frontier is that difference: `num_other_rooms - num_remaining_wumpii`.
     num_other_rooms = known_world.num_rooms() - len(known_safe) - len(frontier)
     pprint("num_other_rooms: ", num_other_rooms)
-    # min_count = max(0, -(num_other_rooms - num_remaining_wumpii))
-    min_count = 0
+    min_count = max(0, -(num_other_rooms - num_remaining_wumpii))
+    # min_count = 0
     pprint("min_count: ", min_count)
     # The maximum number of wumpii in the frontier is just the number of remaining wumpii.
     max_count = num_remaining_wumpii
